@@ -32,6 +32,7 @@ import {
 } from '../store'
 import type { Issue, IssueStatus, IssuePriority } from '../types'
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '../types'
+import { DeleteConfirmDialog } from './DeleteConfirmDialog'
 
 const STATUS_ICONS: Record<IssueStatus, React.ReactNode> = {
   backlog: <CircleDashed size={14} />,
@@ -61,6 +62,7 @@ export function IssueDetail() {
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [showPriorityDropdown, setShowPriorityDropdown] = useState(false)
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   if (!issue) {
     return (
@@ -98,9 +100,7 @@ export function IssueDetail() {
   }
 
   const handleDelete = () => {
-    if (confirm('Are you sure you want to delete this issue?')) {
-      deleteIssue(issue.id)
-    }
+    deleteIssue(issue.id)
   }
 
   return (
@@ -163,7 +163,7 @@ export function IssueDetail() {
           <IconButton onClick={() => navigator.clipboard.writeText(issue.identifier)}>
             <Copy size={14} />
           </IconButton>
-          <IconButton onClick={handleDelete}>
+          <IconButton onClick={() => setShowDeleteDialog(true)}>
             <Trash2 size={14} />
           </IconButton>
           <IconButton onClick={() => setSelectedIssue(null)}>
@@ -418,6 +418,13 @@ export function IssueDetail() {
           </PropertyRow>
         </div>
       </div>
+
+      <DeleteConfirmDialog
+        isOpen={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={handleDelete}
+        itemName={issue.title}
+      />
     </div>
   )
 }

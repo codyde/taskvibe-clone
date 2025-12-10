@@ -1,6 +1,11 @@
-import { useState, useCallback, useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Issue, Project, User, IssueLabel, View, IssueStatus, IssuePriority } from '../types'
+
+type Workspace = {
+  name: string
+  icon: string | null // base64 encoded image or null for default
+}
 
 type Store = {
   issues: Issue[]
@@ -11,6 +16,7 @@ type Store = {
   currentUser: User
   selectedIssueId: string | null
   activeView: string
+  workspace: Workspace
 }
 
 const INITIAL_USERS: User[] = [
@@ -45,6 +51,10 @@ let store: Store = {
   currentUser: INITIAL_USERS[0],
   selectedIssueId: null,
   activeView: 'view-inbox',
+  workspace: {
+    name: 'Acme Inc',
+    icon: null,
+  },
 }
 
 const listeners = new Set<() => void>()
@@ -106,6 +116,11 @@ export function useActiveView() {
   return activeView
 }
 
+export function useWorkspace() {
+  const { workspace } = useStore()
+  return workspace
+}
+
 export function getProjectById(id: string) {
   return store.projects.find((p) => p.id === id)
 }
@@ -125,6 +140,14 @@ export function setSelectedIssue(issueId: string | null) {
 
 export function setActiveView(viewId: string) {
   store = { ...store, activeView: viewId }
+  emitChange()
+}
+
+export function updateWorkspace(updates: Partial<{ name: string; icon: string | null }>) {
+  store = {
+    ...store,
+    workspace: { ...store.workspace, ...updates },
+  }
   emitChange()
 }
 
@@ -211,4 +234,44 @@ export function getFilteredIssues(filter?: {
   }
 
   return filtered
+}
+
+export function createProject(data: { name: string; color?: string; description?: string }) {
+  const key = data.name
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase())
+    .join('')
+    .slice(0, 3) || 'PRJ'
+
+  const newProject: Project = {
+    id: uuidv4(),
+    name: data.name,
+    key,
+    color: data.color || '#9D58BF',
+    description: data.description,
+  }
+
+  store = { ...store, projects: [...store.projects, newProject] }
+  emitChange()
+  return newProject
+}
+
+export function updateProject(projectId: string, updates: Partial<Omit<Project, 'id'>>) {
+  store = {
+    ...store,
+    projects: store.projects.map((project) =>
+      project.id === projectId ? { ...project, ...updates } : project
+    ),
+  }
+  emitChange()
+}
+
+export function deleteProject(projectId: string) {
+  store = {
+    ...store,
+    projects: store.projects.filter((p) => p.id !== projectId),
+    issues: store.issues.filter((i) => i.projectId !== projectId),
+    activeView: store.activeView === `project-${projectId}` ? 'view-inbox' : store.activeView,
+  }
+  emitChange()
 }

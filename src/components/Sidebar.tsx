@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react'
 import {
   Inbox,
   User,
@@ -9,8 +10,12 @@ import {
   Settings,
   FolderKanban,
   Home,
+  Pencil,
 } from 'lucide-react'
-import { useViews, useProjects, useActiveView, setActiveView, useCurrentUser } from '../store'
+import { useViews, useProjects, useActiveView, setActiveView, useCurrentUser, useWorkspace, createProject, updateProject } from '../store'
+import { ProjectEditDialog } from './ProjectEditDialog'
+import { AddProjectDialog } from './AddProjectDialog'
+import type { Project } from '../types'
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   inbox: <Inbox size={16} />,
@@ -19,11 +24,29 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   layers: <Layers size={16} />,
 }
 
-export function Sidebar({ onCreateIssue }: { onCreateIssue: () => void }) {
+export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () => void; onOpenSettings: () => void }) {
   const views = useViews()
   const projects = useProjects()
   const activeView = useActiveView()
   const currentUser = useCurrentUser()
+  const workspace = useWorkspace()
+  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [showAddProject, setShowAddProject] = useState(false)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowWorkspaceMenu(false)
+      }
+    }
+
+    if (showWorkspaceMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showWorkspaceMenu])
 
   return (
     <aside
@@ -39,19 +62,22 @@ export function Sidebar({ onCreateIssue }: { onCreateIssue: () => void }) {
     >
       {/* Workspace header */}
       <div
+        ref={dropdownRef}
         style={{
           padding: '12px 12px 8px',
           borderBottom: '1px solid var(--color-border)',
+          position: 'relative',
         }}
       >
         <button
+          onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             width: '100%',
             padding: '8px',
-            backgroundColor: 'transparent',
+            backgroundColor: showWorkspaceMenu ? 'var(--color-bg-hover)' : 'transparent',
             border: 'none',
             borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
@@ -61,7 +87,9 @@ export function Sidebar({ onCreateIssue }: { onCreateIssue: () => void }) {
             e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent'
+            if (!showWorkspaceMenu) {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }
           }}
         >
           <div
@@ -69,16 +97,19 @@ export function Sidebar({ onCreateIssue }: { onCreateIssue: () => void }) {
               width: '24px',
               height: '24px',
               borderRadius: 'var(--radius-sm)',
-              background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
+              background: workspace.icon 
+                ? `url(${workspace.icon}) center/cover no-repeat` 
+                : 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 600,
               fontSize: '12px',
               color: 'white',
+              overflow: 'hidden',
             }}
           >
-            A
+            {!workspace.icon && workspace.name.charAt(0).toUpperCase()}
           </div>
           <span
             style={{
@@ -88,10 +119,69 @@ export function Sidebar({ onCreateIssue }: { onCreateIssue: () => void }) {
               color: 'var(--color-text-primary)',
             }}
           >
-            Acme Inc
+            {workspace.name}
           </span>
-          <ChevronDown size={14} style={{ color: 'var(--color-text-muted)' }} />
+          <ChevronDown 
+            size={14} 
+            style={{ 
+              color: 'var(--color-text-muted)',
+              transform: showWorkspaceMenu ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform var(--transition-fast)',
+            }} 
+          />
         </button>
+
+        {/* Dropdown Menu */}
+        {showWorkspaceMenu && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: '12px',
+              right: '12px',
+              marginTop: '4px',
+              backgroundColor: 'var(--color-bg-tertiary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+              zIndex: 50,
+              overflow: 'hidden',
+            }}
+            className="animate-slide-in"
+          >
+            <button
+              onClick={() => {
+                setShowWorkspaceMenu(false)
+                onOpenSettings()
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                width: '100%',
+                padding: '10px 14px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '13px',
+                color: 'var(--color-text-secondary)',
+                transition: 'all var(--transition-fast)',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+                e.currentTarget.style.color = 'var(--color-text-primary)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+                e.currentTarget.style.color = 'var(--color-text-secondary)'
+              }}
+            >
+              <Settings size={15} />
+              <span>Workspace Settings</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Search and create */}
@@ -160,24 +250,15 @@ export function Sidebar({ onCreateIssue }: { onCreateIssue: () => void }) {
 
         {/* Projects section */}
         <div style={{ marginTop: '16px' }}>
-          <SectionHeader title="Projects" />
+          <SectionHeader title="Projects" onAdd={() => setShowAddProject(true)} />
           <div style={{ padding: '0 8px' }}>
             {projects.map((project) => (
-              <NavItem
+              <ProjectNavItem
                 key={project.id}
-                icon={
-                  <div
-                    style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '2px',
-                      backgroundColor: project.color,
-                    }}
-                  />
-                }
-                label={project.name}
-                onClick={() => setActiveView(`project-${project.id}`)}
+                project={project}
                 active={activeView === `project-${project.id}`}
+                onClick={() => setActiveView(`project-${project.id}`)}
+                onEdit={() => setEditingProject(project)}
               />
             ))}
           </div>
@@ -240,11 +321,32 @@ export function Sidebar({ onCreateIssue }: { onCreateIssue: () => void }) {
           <Settings size={14} style={{ color: 'var(--color-text-muted)' }} />
         </button>
       </div>
+
+      {/* Project Edit Dialog */}
+      <ProjectEditDialog
+        isOpen={editingProject !== null}
+        onClose={() => setEditingProject(null)}
+        onSave={(name) => {
+          if (editingProject) {
+            updateProject(editingProject.id, { name })
+          }
+        }}
+        currentName={editingProject?.name || ''}
+      />
+
+      {/* Add Project Dialog */}
+      <AddProjectDialog
+        isOpen={showAddProject}
+        onClose={() => setShowAddProject(false)}
+        onSave={(name, color) => {
+          createProject({ name, color })
+        }}
+      />
     </aside>
   )
 }
 
-function SectionHeader({ title }: { title: string }) {
+function SectionHeader({ title, onAdd }: { title: string; onAdd?: () => void }) {
   return (
     <div
       style={{
@@ -265,21 +367,130 @@ function SectionHeader({ title }: { title: string }) {
       >
         {title}
       </span>
+      {onAdd && (
+        <button
+          onClick={onAdd}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '2px',
+            cursor: 'pointer',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--color-text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'color var(--transition-fast)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'var(--color-text-primary)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--color-text-muted)'
+          }}
+        >
+          <Plus size={12} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ProjectNavItem({
+  project,
+  active,
+  onClick,
+  onEdit,
+}: {
+  project: Project
+  active?: boolean
+  onClick: () => void
+  onEdit: () => void
+}) {
+  const [isHovered, setIsHovered] = useState(false)
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <button
+        onClick={onClick}
         style={{
-          background: 'none',
-          border: 'none',
-          padding: '2px',
-          cursor: 'pointer',
-          borderRadius: 'var(--radius-sm)',
-          color: 'var(--color-text-muted)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          gap: '8px',
+          width: '100%',
+          padding: '6px 8px',
+          paddingRight: isHovered ? '32px' : '8px',
+          backgroundColor: active ? 'var(--color-bg-active)' : 'transparent',
+          border: 'none',
+          borderRadius: 'var(--radius-md)',
+          cursor: 'pointer',
+          transition: 'background-color var(--transition-fast)',
+          color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+        }}
+        onMouseEnter={(e) => {
+          if (!active) {
+            e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!active) {
+            e.currentTarget.style.backgroundColor = 'transparent'
+          }
         }}
       >
-        <Plus size={12} />
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '2px',
+              backgroundColor: project.color,
+            }}
+          />
+        </span>
+        <span style={{ flex: 1, textAlign: 'left', fontSize: '13px' }}>{project.name}</span>
       </button>
+      {isHovered && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onEdit()
+          }}
+          style={{
+            position: 'absolute',
+            right: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '20px',
+            height: '20px',
+            backgroundColor: 'transparent',
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            cursor: 'pointer',
+            color: 'var(--color-text-muted)',
+            transition: 'all var(--transition-fast)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)'
+            e.currentTarget.style.color = 'var(--color-text-primary)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+            e.currentTarget.style.color = 'var(--color-text-muted)'
+          }}
+        >
+          <Pencil size={12} />
+        </button>
+      )}
     </div>
   )
 }

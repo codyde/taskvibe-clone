@@ -4,12 +4,14 @@ import { Sidebar } from '../components/Sidebar'
 import { IssueList } from '../components/IssueList'
 import { IssueDetail } from '../components/IssueDetail'
 import { CreateIssueModal } from '../components/CreateIssueModal'
+import { SettingsModal } from '../components/SettingsModal'
 import { useSelectedIssue, setSelectedIssue } from '../store'
 
 export const Route = createFileRoute('/')({ component: App })
 
 function App() {
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const selectedIssue = useSelectedIssue()
 
   useEffect(() => {
@@ -24,7 +26,9 @@ function App() {
       }
 
       if (e.key === 'Escape') {
-        if (showCreateModal) {
+        if (showSettingsModal) {
+          setShowSettingsModal(false)
+        } else if (showCreateModal) {
           setShowCreateModal(false)
         } else if (selectedIssue) {
           setSelectedIssue(null)
@@ -34,7 +38,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showCreateModal, selectedIssue])
+  }, [showCreateModal, showSettingsModal, selectedIssue])
 
   return (
     <div
@@ -45,7 +49,10 @@ function App() {
         backgroundColor: 'var(--color-bg-primary)',
       }}
     >
-      <Sidebar onCreateIssue={() => setShowCreateModal(true)} />
+      <Sidebar 
+        onCreateIssue={() => setShowCreateModal(true)} 
+        onOpenSettings={() => setShowSettingsModal(true)}
+      />
 
       <main
         style={{
@@ -59,6 +66,7 @@ function App() {
       </main>
 
       {showCreateModal && <CreateIssueModal onClose={() => setShowCreateModal(false)} />}
+      {showSettingsModal && <SettingsModal onClose={() => setShowSettingsModal(false)} />}
     </div>
   )
 }
