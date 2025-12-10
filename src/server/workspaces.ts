@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { authMiddleware } from '../lib/auth-middleware';
+import { authMiddleware } from '@/lib/auth-middleware';
 
 // Validation schemas
 const createWorkspaceSchema = z.object({
@@ -23,7 +23,7 @@ export const getWorkspaces = createServerFn({ method: 'GET' })
       },
     });
 
-    return memberships.map((m) => ({
+    return memberships.map((m: any) => ({
       ...m.workspace,
       role: m.role,
     }));
@@ -37,7 +37,7 @@ export const getWorkspace = createServerFn({ method: 'GET' })
     const { db } = await import('../db');
 
     const membership = await db.query.workspaceMembers.findFirst({
-      where: (wm, { and, eq }) =>
+      where: (wm: any, { and, eq }: any) =>
         and(eq(wm.userId, context.user.id), eq(wm.workspaceId, data.workspaceId)),
       with: {
         workspace: true,
@@ -122,7 +122,7 @@ export const updateWorkspace = createServerFn({ method: 'POST' })
 
     // Check access (must be owner or admin)
     const membership = await db.query.workspaceMembers.findFirst({
-      where: (wm, { and, eq }) =>
+      where: (wm: any, { and, eq }: any) =>
         and(eq(wm.userId, context.user.id), eq(wm.workspaceId, data.workspaceId)),
     });
 

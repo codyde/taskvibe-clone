@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start';
-import { authMiddleware } from '../lib/auth-middleware';
+import { authMiddleware } from '@/lib/auth-middleware';
 
 // Helper to get workspace IDs for a user
 async function getUserWorkspaceIds(userId: string): Promise<string[]> {
@@ -44,7 +44,7 @@ export const getWorkspaceUsers = createServerFn({ method: 'GET' })
       },
     });
 
-    return members.map((m) => ({
+    return members.map((m: any) => ({
       ...m.user,
       role: m.role,
       // Generate initials from name
@@ -88,7 +88,7 @@ export const getUsers = createServerFn({ method: 'GET' })
       initials: string;
     }>();
     
-    members.forEach((m) => {
+    members.forEach((m: any) => {
       if (!userMap.has(m.user.id)) {
         userMap.set(m.user.id, {
           id: m.user.id,

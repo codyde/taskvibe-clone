@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { authMiddleware } from '../lib/auth-middleware';
+import { authMiddleware } from '@/lib/auth-middleware';
 
 // Validation schemas
 const createLabelSchema = z.object({
@@ -33,7 +33,7 @@ async function checkWorkspaceAccess(userId: string, workspaceId: string): Promis
   const { db } = await import('../db');
 
   const membership = await db.query.workspaceMembers.findFirst({
-    where: (wm, { and, eq }) =>
+    where: (wm: any, { and, eq }: any) =>
       and(eq(wm.userId, userId), eq(wm.workspaceId, workspaceId)),
   });
   return !!membership;
@@ -65,7 +65,7 @@ export const getLabels = createServerFn({ method: 'GET' })
 
     return db.query.labels.findMany({
       where: inArray(labels.workspaceId, targetWorkspaces),
-      orderBy: (labels, { asc }) => [asc(labels.name)],
+      orderBy: (labels: any, { asc }: any) => [asc(labels.name)],
     });
   });
 

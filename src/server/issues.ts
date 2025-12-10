@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { authMiddleware } from '../lib/auth-middleware';
+import { authMiddleware } from '@/lib/auth-middleware';
 
 // Validation schemas
 const issueStatusEnum = z.enum([
@@ -68,7 +68,7 @@ async function checkWorkspaceAccess(userId: string, workspaceId: string): Promis
   const { db } = await import('../db');
 
   const membership = await db.query.workspaceMembers.findFirst({
-    where: (wm, { and, eq }) =>
+    where: (wm: any, { and, eq }: any) =>
       and(eq(wm.userId, userId), eq(wm.workspaceId, workspaceId)),
   });
   return !!membership;
@@ -96,7 +96,7 @@ export const getIssues = createServerFn({ method: 'GET' })
       where: inArray(projects.workspaceId, workspaceIds),
       columns: { id: true },
     });
-    const projectIds = userProjects.map((p) => p.id);
+    const projectIds = userProjects.map((p: any) => p.id);
 
     if (projectIds.length === 0) {
       return [];
@@ -148,9 +148,9 @@ export const getIssues = createServerFn({ method: 'GET' })
     });
 
     // Transform to include labels array
-    return result.map((issue) => ({
+    return result.map((issue: any) => ({
       ...issue,
-      labels: issue.issueLabels.map((il) => il.label),
+      labels: issue.issueLabels.map((il: any) => il.label),
     }));
   });
 
@@ -194,7 +194,7 @@ export const getIssue = createServerFn({ method: 'GET' })
 
     return {
       ...issue,
-      labels: issue.issueLabels.map((il) => il.label),
+      labels: issue.issueLabels.map((il: any) => il.label),
     };
   });
 
