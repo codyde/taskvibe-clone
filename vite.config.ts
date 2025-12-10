@@ -3,11 +3,9 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
-import { nitroV2Plugin } from '@tanstack/nitro-v2-vite-plugin'
 
 const config = defineConfig({
   plugins: [
-    nitroV2Plugin(),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
       projects: ['./tsconfig.json'],
@@ -18,7 +16,11 @@ const config = defineConfig({
   ],
   server: {
     allowedHosts: ['.trycloudflare.com']
-  }
+  },
+  // Make sure server-only dependencies are externalized
+  ssr: {
+    external: ['better-auth', '@neondatabase/serverless', 'drizzle-orm'],
+  },
 })
 
 export default config

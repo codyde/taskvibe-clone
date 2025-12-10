@@ -8,9 +8,8 @@ import {
   Signal,
   Minus,
   Calendar,
-} from 'lucide-react'
-import { getProjectById, getUserById, getLabelById } from '../store'
-import type { Issue, IssueStatus, IssuePriority } from '../types'
+} from 'lucide-react';
+import type { IssueStatus, IssuePriority } from '../db/schema';
 
 const STATUS_ICONS: Record<IssueStatus, React.ReactNode> = {
   backlog: <CircleDashed size={14} style={{ color: '#6b6478' }} />,
@@ -19,7 +18,7 @@ const STATUS_ICONS: Record<IssueStatus, React.ReactNode> = {
   in_review: <CircleDot size={14} style={{ color: '#9D58BF' }} />,
   done: <CircleCheck size={14} style={{ color: '#22c55e' }} />,
   cancelled: <CircleX size={14} style={{ color: '#6b6478' }} />,
-}
+};
 
 const PRIORITY_ICONS: Record<IssuePriority, React.ReactNode> = {
   urgent: <AlertTriangle size={14} style={{ color: '#FF708C' }} />,
@@ -27,19 +26,40 @@ const PRIORITY_ICONS: Record<IssuePriority, React.ReactNode> = {
   medium: <Signal size={14} style={{ color: '#9D58BF' }} />,
   low: <Signal size={14} style={{ color: '#6b6478' }} />,
   none: <Minus size={14} style={{ color: '#4a4260' }} />,
-}
+};
+
+// Issue type with included relations
+type IssueWithRelations = {
+  id: string;
+  identifier: string;
+  title: string;
+  description?: string | null;
+  status: IssueStatus;
+  priority: IssuePriority;
+  projectId: string;
+  assigneeId?: string | null;
+  creatorId: string;
+  parentId?: string | null;
+  estimate?: number | null;
+  dueDate?: Date | string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  project?: { id: string; name: string; color: string } | null;
+  assignee?: { id: string; name: string; email: string } | null;
+  labels?: Array<{ id: string; name: string; color: string }>;
+};
 
 export function IssueRow({
   issue,
   isSelected,
   onSelect,
 }: {
-  issue: Issue
-  isSelected: boolean
-  onSelect: () => void
+  issue: IssueWithRelations;
+  isSelected: boolean;
+  onSelect: () => void;
 }) {
-  const project = getProjectById(issue.projectId)
-  const assignee = issue.assigneeId ? getUserById(issue.assigneeId) : null
+  const assignee = issue.assignee;
+  const labels = issue.labels || [];
 
   return (
     <div
@@ -56,12 +76,12 @@ export function IssueRow({
       }}
       onMouseEnter={(e) => {
         if (!isSelected) {
-          e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+          e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
         }
       }}
       onMouseLeave={(e) => {
         if (!isSelected) {
-          e.currentTarget.style.backgroundColor = 'transparent'
+          e.currentTarget.style.backgroundColor = 'transparent';
         }
       }}
     >
@@ -128,25 +148,21 @@ export function IssueRow({
           flexShrink: 0,
         }}
       >
-        {issue.labels.slice(0, 2).map((labelId) => {
-          const label = getLabelById(labelId)
-          if (!label) return null
-          return (
-            <span
-              key={labelId}
-              style={{
-                padding: '2px 6px',
-                borderRadius: '9999px',
-                fontSize: '10px',
-                fontWeight: 500,
-                backgroundColor: `${label.color}20`,
-                color: label.color,
-              }}
-            >
-              {label.name}
-            </span>
-          )
-        })}
+        {labels.slice(0, 2).map((label) => (
+          <span
+            key={label.id}
+            style={{
+              padding: '2px 6px',
+              borderRadius: '9999px',
+              fontSize: '10px',
+              fontWeight: 500,
+              backgroundColor: `${label.color}20`,
+              color: label.color,
+            }}
+          >
+            {label.name}
+          </span>
+        ))}
       </div>
 
       {/* Due date */}
@@ -203,7 +219,12 @@ export function IssueRow({
           }}
           title={assignee.name}
         >
-          {assignee.initials}
+          {assignee.name
+            ?.split(' ')
+            .map((n) => n[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2) || 'U'}
         </div>
       ) : (
         <div
@@ -218,5 +239,5 @@ export function IssueRow({
         />
       )}
     </div>
-  )
+  );
 }

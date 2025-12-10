@@ -1,53 +1,78 @@
-import { useState, useRef } from 'react'
-import { X, Upload, Trash2, Image } from 'lucide-react'
-import { useWorkspace, updateWorkspace } from '../store'
+import { useState, useRef, useEffect } from 'react';
+import { X, Upload, Trash2 } from 'lucide-react';
+import { useWorkspaces, useUpdateWorkspace } from '../hooks/useWorkspaces';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
-  const workspace = useWorkspace()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  
-  const [name, setName] = useState(workspace.name)
-  const [icon, setIcon] = useState<string | null>(workspace.icon)
-  const [dragActive, setDragActive] = useState(false)
+  const { data: workspaces = [] } = useWorkspaces();
+  const updateWorkspaceMutation = useUpdateWorkspace();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const workspace = workspaces[0];
+
+  const [name, setName] = useState('');
+  const [icon, setIcon] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+
+  // Initialize form when workspace loads
+  useEffect(() => {
+    if (workspace) {
+      setName(workspace.name);
+      setIcon(workspace.icon || null);
+    }
+  }, [workspace]);
 
   const handleFileChange = (file: File) => {
     if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader()
+      const reader = new FileReader();
       reader.onload = (e) => {
-        setIcon(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
+        setIcon(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     }
-  }
+  };
 
   const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+    e.preventDefault();
+    e.stopPropagation();
     if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true)
+      setDragActive(true);
     } else if (e.type === 'dragleave') {
-      setDragActive(false)
+      setDragActive(false);
     }
-  }
+  };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileChange(e.dataTransfer.files[0])
+      handleFileChange(e.dataTransfer.files[0]);
     }
-  }
+  };
 
   const handleSave = () => {
-    if (name.trim()) {
-      updateWorkspace({ name: name.trim(), icon })
-      onClose()
+    if (name.trim() && workspace) {
+      updateWorkspaceMutation.mutate(
+        {
+          workspaceId: workspace.id,
+          name: name.trim(),
+          icon,
+        },
+        {
+          onSuccess: () => {
+            onClose();
+          },
+        }
+      );
     }
-  }
+  };
 
   const handleRemoveIcon = () => {
-    setIcon(null)
+    setIcon(null);
+  };
+
+  if (!workspace) {
+    return null;
   }
 
   return (
@@ -106,10 +131,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               transition: 'all var(--transition-fast)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+              e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
+              e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >
             <X size={16} />
@@ -133,7 +158,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             >
               Workspace Icon
             </label>
-            
+
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
               {/* Current Icon Preview */}
               <div
@@ -141,8 +166,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   width: '72px',
                   height: '72px',
                   borderRadius: 'var(--radius-md)',
-                  background: icon 
-                    ? `url(${icon}) center/cover no-repeat` 
+                  background: icon
+                    ? `url(${icon}) center/cover no-repeat`
                     : 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
                   display: 'flex',
                   alignItems: 'center',
@@ -156,7 +181,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               >
                 {!icon && name.charAt(0).toUpperCase()}
               </div>
-              
+
               {/* Upload Area */}
               <div style={{ flex: 1 }}>
                 <div
@@ -169,32 +194,38 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                     padding: '16px',
                     border: `2px dashed ${dragActive ? 'var(--color-primary)' : 'var(--color-border)'}`,
                     borderRadius: 'var(--radius-md)',
-                    backgroundColor: dragActive ? 'rgba(157, 88, 191, 0.1)' : 'var(--color-bg-tertiary)',
+                    backgroundColor: dragActive
+                      ? 'rgba(157, 88, 191, 0.1)'
+                      : 'var(--color-bg-tertiary)',
                     cursor: 'pointer',
                     transition: 'all var(--transition-fast)',
                     textAlign: 'center',
                   }}
                 >
-                  <Upload 
-                    size={20} 
-                    style={{ 
+                  <Upload
+                    size={20}
+                    style={{
                       color: dragActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
                       marginBottom: '8px',
-                    }} 
+                    }}
                   />
-                  <p style={{ 
-                    margin: 0, 
-                    fontSize: '12px', 
-                    color: 'var(--color-text-secondary)',
-                    lineHeight: 1.4,
-                  }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: '12px',
+                      color: 'var(--color-text-secondary)',
+                      lineHeight: 1.4,
+                    }}
+                  >
                     Drop an image here or click to upload
                   </p>
-                  <p style={{ 
-                    margin: '4px 0 0', 
-                    fontSize: '11px', 
-                    color: 'var(--color-text-muted)',
-                  }}>
+                  <p
+                    style={{
+                      margin: '4px 0 0',
+                      fontSize: '11px',
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
                     PNG, JPG, or GIF (max 2MB)
                   </p>
                 </div>
@@ -205,11 +236,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   style={{ display: 'none' }}
                   onChange={(e) => {
                     if (e.target.files?.[0]) {
-                      handleFileChange(e.target.files[0])
+                      handleFileChange(e.target.files[0]);
                     }
                   }}
                 />
-                
+
                 {icon && (
                   <button
                     onClick={handleRemoveIcon}
@@ -228,12 +259,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                       transition: 'all var(--transition-fast)',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-secondary)'
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 112, 140, 0.1)'
+                      e.currentTarget.style.borderColor = 'var(--color-secondary)';
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 112, 140, 0.1)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-border)'
-                      e.currentTarget.style.backgroundColor = 'transparent'
+                      e.currentTarget.style.borderColor = 'var(--color-border)';
+                      e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
                     <Trash2 size={12} />
@@ -276,12 +307,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 transition: 'all var(--transition-fast)',
               }}
               onFocus={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-primary)'
-                e.currentTarget.style.boxShadow = '0 0 0 2px rgba(157, 88, 191, 0.2)'
+                e.currentTarget.style.borderColor = 'var(--color-primary)';
+                e.currentTarget.style.boxShadow = '0 0 0 2px rgba(157, 88, 191, 0.2)';
               }}
               onBlur={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-border)'
-                e.currentTarget.style.boxShadow = 'none'
+                e.currentTarget.style.borderColor = 'var(--color-border)';
+                e.currentTarget.style.boxShadow = 'none';
               }}
               placeholder="Enter workspace name"
             />
@@ -315,10 +346,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               transition: 'all var(--transition-fast)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'var(--color-border-light)'
+              e.currentTarget.style.borderColor = 'var(--color-border-light)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--color-border)'
+              e.currentTarget.style.borderColor = 'var(--color-border)';
             }}
           >
             Cancel
@@ -326,32 +357,38 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={handleSave}
-            disabled={!name.trim()}
+            disabled={!name.trim() || updateWorkspaceMutation.isPending}
             style={{
               padding: '8px 20px',
-              backgroundColor: name.trim() ? 'var(--color-primary)' : 'var(--color-bg-hover)',
+              backgroundColor:
+                name.trim() && !updateWorkspaceMutation.isPending
+                  ? 'var(--color-primary)'
+                  : 'var(--color-bg-hover)',
               border: 'none',
               borderRadius: 'var(--radius-md)',
-              cursor: name.trim() ? 'pointer' : 'not-allowed',
+              cursor:
+                name.trim() && !updateWorkspaceMutation.isPending ? 'pointer' : 'not-allowed',
               fontSize: '13px',
               fontWeight: 500,
-              color: name.trim() ? 'white' : 'var(--color-text-muted)',
+              color:
+                name.trim() && !updateWorkspaceMutation.isPending
+                  ? 'white'
+                  : 'var(--color-text-muted)',
               transition: 'all var(--transition-fast)',
             }}
             onMouseEnter={(e) => {
-              if (name.trim()) {
-                e.currentTarget.style.opacity = '0.9'
+              if (name.trim() && !updateWorkspaceMutation.isPending) {
+                e.currentTarget.style.opacity = '0.9';
               }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = '1'
+              e.currentTarget.style.opacity = '1';
             }}
           >
-            Save Changes
+            {updateWorkspaceMutation.isPending ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }
-

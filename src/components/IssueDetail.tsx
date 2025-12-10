@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react';
 import {
   X,
   Circle,
@@ -9,30 +9,16 @@ import {
   AlertTriangle,
   Signal,
   Minus,
-  Calendar,
   User,
-  Tag,
-  Clock,
-  MoreHorizontal,
   Trash2,
   Copy,
   ChevronDown,
-} from 'lucide-react'
-import {
-  useSelectedIssue,
-  setSelectedIssue,
-  updateIssue,
-  deleteIssue,
-  getProjectById,
-  getUserById,
-  getLabelById,
-  useUsers,
-  useLabels,
-  useProjects,
-} from '../store'
-import type { Issue, IssueStatus, IssuePriority } from '../types'
-import { STATUS_CONFIG, PRIORITY_CONFIG } from '../types'
-import { DeleteConfirmDialog } from './DeleteConfirmDialog'
+} from 'lucide-react';
+import { useSelectedIssueId, setSelectedIssue, STATUS_CONFIG, PRIORITY_CONFIG } from '../store';
+import { useIssue, useUpdateIssue, useDeleteIssue } from '../hooks/useIssues';
+import { useUsers } from '../hooks/useUsers';
+import type { IssueStatus, IssuePriority } from '../db/schema';
+import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 
 const STATUS_ICONS: Record<IssueStatus, React.ReactNode> = {
   backlog: <CircleDashed size={14} />,
@@ -41,7 +27,7 @@ const STATUS_ICONS: Record<IssueStatus, React.ReactNode> = {
   in_review: <CircleDot size={14} />,
   done: <CircleCheck size={14} />,
   cancelled: <CircleX size={14} />,
-}
+};
 
 const PRIORITY_ICONS: Record<IssuePriority, React.ReactNode> = {
   urgent: <AlertTriangle size={14} />,
@@ -49,20 +35,63 @@ const PRIORITY_ICONS: Record<IssuePriority, React.ReactNode> = {
   medium: <Signal size={14} />,
   low: <Signal size={14} />,
   none: <Minus size={14} />,
-}
+};
 
 export function IssueDetail() {
-  const issue = useSelectedIssue()
-  const users = useUsers()
-  const labels = useLabels()
-  const projects = useProjects()
+  const selectedIssueId = useSelectedIssueId();
+  const { data: issue, isLoading } = useIssue(selectedIssueId);
+  const { data: users = [] } = useUsers();
+  const updateIssueMutation = useUpdateIssue();
+  const deleteIssueMutation = useDeleteIssue();
 
-  const [title, setTitle] = useState(issue?.title || '')
-  const [description, setDescription] = useState(issue?.description || '')
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
-  const [showPriorityDropdown, setShowPriorityDropdown] = useState(false)
-  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [showPriorityDropdown, setShowPriorityDropdown] = useState(false);
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // Update local state when issue changes
+  useEffect(() => {
+    if (issue) {
+      setTitle(issue.title);
+      setDescription(issue.description || '');
+    }
+  }, [issue]);
+
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          width: '400px',
+          minWidth: '400px',
+          height: '100vh',
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderLeft: '1px solid var(--color-border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--color-text-muted)',
+        }}
+      >
+        <div
+          style={{
+            width: '24px',
+            height: '24px',
+            border: '2px solid var(--color-border)',
+            borderTopColor: 'var(--color-primary)',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }}
+        />
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   if (!issue) {
     return (
@@ -81,27 +110,48 @@ export function IssueDetail() {
       >
         <p>Select an issue to view details</p>
       </div>
-    )
+    );
   }
 
-  const project = getProjectById(issue.projectId)
-  const assignee = issue.assigneeId ? getUserById(issue.assigneeId) : null
+  // Get project and assignee from issue relations
+  const project = issue.project;
+  const assignee = issue.assignee;
+  const issueLabels = issue.labels || [];
 
   const handleTitleBlur = () => {
     if (title !== issue.title) {
-      updateIssue(issue.id, { title })
+      updateIssueMutation.mutate({ issueId: issue.id, title });
     }
-  }
+  };
 
   const handleDescriptionBlur = () => {
     if (description !== issue.description) {
-      updateIssue(issue.id, { description })
+      updateIssueMutation.mutate({ issueId: issue.id, description });
     }
-  }
+  };
 
   const handleDelete = () => {
-    deleteIssue(issue.id)
-  }
+    deleteIssueMutation.mutate(issue.id, {
+      onSuccess: () => {
+        setSelectedIssue(null);
+      },
+    });
+  };
+
+  const handleStatusChange = (status: IssueStatus) => {
+    updateIssueMutation.mutate({ issueId: issue.id, status });
+    setShowStatusDropdown(false);
+  };
+
+  const handlePriorityChange = (priority: IssuePriority) => {
+    updateIssueMutation.mutate({ issueId: issue.id, priority });
+    setShowPriorityDropdown(false);
+  };
+
+  const handleAssigneeChange = (assigneeId: string | null) => {
+    updateIssueMutation.mutate({ issueId: issue.id, assigneeId });
+    setShowAssigneeDropdown(false);
+  };
 
   return (
     <div
@@ -221,10 +271,10 @@ export function IssueDetail() {
               onToggle={() => setShowStatusDropdown(!showStatusDropdown)}
               trigger={
                 <PropertyButton>
-                  <span style={{ color: STATUS_CONFIG[issue.status].color }}>
-                    {STATUS_ICONS[issue.status]}
+                  <span style={{ color: STATUS_CONFIG[issue.status as IssueStatus].color }}>
+                    {STATUS_ICONS[issue.status as IssueStatus]}
                   </span>
-                  <span>{STATUS_CONFIG[issue.status].label}</span>
+                  <span>{STATUS_CONFIG[issue.status as IssueStatus].label}</span>
                   <ChevronDown size={12} />
                 </PropertyButton>
               }
@@ -232,10 +282,7 @@ export function IssueDetail() {
               {(Object.keys(STATUS_CONFIG) as IssueStatus[]).map((status) => (
                 <DropdownItem
                   key={status}
-                  onClick={() => {
-                    updateIssue(issue.id, { status })
-                    setShowStatusDropdown(false)
-                  }}
+                  onClick={() => handleStatusChange(status)}
                   isSelected={issue.status === status}
                 >
                   <span style={{ color: STATUS_CONFIG[status].color }}>
@@ -254,10 +301,10 @@ export function IssueDetail() {
               onToggle={() => setShowPriorityDropdown(!showPriorityDropdown)}
               trigger={
                 <PropertyButton>
-                  <span style={{ color: PRIORITY_CONFIG[issue.priority].color }}>
-                    {PRIORITY_ICONS[issue.priority]}
+                  <span style={{ color: PRIORITY_CONFIG[issue.priority as IssuePriority].color }}>
+                    {PRIORITY_ICONS[issue.priority as IssuePriority]}
                   </span>
-                  <span>{PRIORITY_CONFIG[issue.priority].label}</span>
+                  <span>{PRIORITY_CONFIG[issue.priority as IssuePriority].label}</span>
                   <ChevronDown size={12} />
                 </PropertyButton>
               }
@@ -265,10 +312,7 @@ export function IssueDetail() {
               {(Object.keys(PRIORITY_CONFIG) as IssuePriority[]).map((priority) => (
                 <DropdownItem
                   key={priority}
-                  onClick={() => {
-                    updateIssue(issue.id, { priority })
-                    setShowPriorityDropdown(false)
-                  }}
+                  onClick={() => handlePriorityChange(priority)}
                   isSelected={issue.priority === priority}
                 >
                   <span style={{ color: PRIORITY_CONFIG[priority].color }}>
@@ -303,7 +347,12 @@ export function IssueDetail() {
                           color: 'white',
                         }}
                       >
-                        {assignee.initials}
+                        {assignee.name
+                          ?.split(' ')
+                          .map((n: string) => n[0])
+                          .join('')
+                          .toUpperCase()
+                          .slice(0, 2) || 'U'}
                       </div>
                       <span>{assignee.name}</span>
                     </>
@@ -318,23 +367,17 @@ export function IssueDetail() {
               }
             >
               <DropdownItem
-                onClick={() => {
-                  updateIssue(issue.id, { assigneeId: undefined })
-                  setShowAssigneeDropdown(false)
-                }}
+                onClick={() => handleAssigneeChange(null)}
                 isSelected={!issue.assigneeId}
               >
                 <User size={14} style={{ color: 'var(--color-text-muted)' }} />
                 <span>Unassigned</span>
               </DropdownItem>
-              {users.map((user) => (
+              {users.map((u: { id: string; name: string; initials?: string }) => (
                 <DropdownItem
-                  key={user.id}
-                  onClick={() => {
-                    updateIssue(issue.id, { assigneeId: user.id })
-                    setShowAssigneeDropdown(false)
-                  }}
-                  isSelected={issue.assigneeId === user.id}
+                  key={u.id}
+                  onClick={() => handleAssigneeChange(u.id)}
+                  isSelected={issue.assigneeId === u.id}
                 >
                   <div
                     style={{
@@ -350,9 +393,9 @@ export function IssueDetail() {
                       color: 'white',
                     }}
                   >
-                    {user.initials}
+                    {u.initials || u.name?.charAt(0) || 'U'}
                   </div>
-                  <span>{user.name}</span>
+                  <span>{u.name}</span>
                 </DropdownItem>
               ))}
             </Dropdown>
@@ -361,26 +404,22 @@ export function IssueDetail() {
           {/* Labels */}
           <PropertyRow label="Labels">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-              {issue.labels.length > 0 ? (
-                issue.labels.map((labelId) => {
-                  const label = getLabelById(labelId)
-                  if (!label) return null
-                  return (
-                    <span
-                      key={labelId}
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: '9999px',
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        backgroundColor: `${label.color}20`,
-                        color: label.color,
-                      }}
-                    >
-                      {label.name}
-                    </span>
-                  )
-                })
+              {issueLabels.length > 0 ? (
+                issueLabels.map((label: { id: string; name: string; color: string }) => (
+                  <span
+                    key={label.id}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      backgroundColor: `${label.color}20`,
+                      color: label.color,
+                    }}
+                  >
+                    {label.name}
+                  </span>
+                ))
               ) : (
                 <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
                   No labels
@@ -426,16 +465,10 @@ export function IssueDetail() {
         itemName={issue.title}
       />
     </div>
-  )
+  );
 }
 
-function IconButton({
-  children,
-  onClick,
-}: {
-  children: React.ReactNode
-  onClick: () => void
-}) {
+function IconButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -453,24 +486,18 @@ function IconButton({
         transition: 'all var(--transition-fast)',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = 'transparent'
+        e.currentTarget.style.backgroundColor = 'transparent';
       }}
     >
       {children}
     </button>
-  )
+  );
 }
 
-function PropertyRow({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function PropertyRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div
       style={{
@@ -492,7 +519,7 @@ function PropertyRow({
       </span>
       <div style={{ flex: 1 }}>{children}</div>
     </div>
-  )
+  );
 }
 
 function PropertyButton({ children }: { children: React.ReactNode }) {
@@ -512,15 +539,15 @@ function PropertyButton({ children }: { children: React.ReactNode }) {
         transition: 'all var(--transition-fast)',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = 'transparent'
+        e.currentTarget.style.backgroundColor = 'transparent';
       }}
     >
       {children}
     </button>
-  )
+  );
 }
 
 function Dropdown({
@@ -529,10 +556,10 @@ function Dropdown({
   trigger,
   children,
 }: {
-  isOpen: boolean
-  onToggle: () => void
-  trigger: React.ReactNode
-  children: React.ReactNode
+  isOpen: boolean;
+  onToggle: () => void;
+  trigger: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <div style={{ position: 'relative' }}>
@@ -568,7 +595,7 @@ function Dropdown({
         </>
       )}
     </div>
-  )
+  );
 }
 
 function DropdownItem({
@@ -576,9 +603,9 @@ function DropdownItem({
   onClick,
   isSelected,
 }: {
-  children: React.ReactNode
-  onClick: () => void
-  isSelected?: boolean
+  children: React.ReactNode;
+  onClick: () => void;
+  isSelected?: boolean;
 }) {
   return (
     <button
@@ -598,15 +625,15 @@ function DropdownItem({
         textAlign: 'left',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.backgroundColor = isSelected
           ? 'var(--color-bg-active)'
-          : 'transparent'
+          : 'transparent';
       }}
     >
       {children}
     </button>
-  )
+  );
 }

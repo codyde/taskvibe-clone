@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react';
 import {
   X,
   Circle,
@@ -7,12 +7,16 @@ import {
   AlertTriangle,
   Signal,
   Minus,
-  ChevronDown,
   User,
-} from 'lucide-react'
-import { createIssue, useProjects, useUsers, useLabels, useCurrentUser } from '../store'
-import type { IssueStatus, IssuePriority } from '../types'
-import { STATUS_CONFIG, PRIORITY_CONFIG } from '../types'
+} from 'lucide-react';
+import { useProjects } from '../hooks/useProjects';
+import { useUsers } from '../hooks/useUsers';
+import { useCreateIssue } from '../hooks/useIssues';
+import type { IssueStatus, IssuePriority } from '../db/schema';
+import { STATUS_CONFIG, PRIORITY_CONFIG } from '../store';
+
+type ProjectItem = { id: string; name: string; color: string };
+type UserItem = { id: string; name: string; initials?: string };
 
 const STATUS_ICONS: Record<IssueStatus, React.ReactNode> = {
   backlog: <CircleDashed size={14} />,
@@ -21,7 +25,7 @@ const STATUS_ICONS: Record<IssueStatus, React.ReactNode> = {
   in_review: <CircleDot size={14} />,
   done: <Circle size={14} />,
   cancelled: <Circle size={14} />,
-}
+};
 
 const PRIORITY_ICONS: Record<IssuePriority, React.ReactNode> = {
   urgent: <AlertTriangle size={14} />,
@@ -29,47 +33,58 @@ const PRIORITY_ICONS: Record<IssuePriority, React.ReactNode> = {
   medium: <Signal size={14} />,
   low: <Signal size={14} />,
   none: <Minus size={14} />,
-}
+};
 
 export function CreateIssueModal({ onClose }: { onClose: () => void }) {
-  const projects = useProjects()
-  const users = useUsers()
-  const labels = useLabels()
-  const currentUser = useCurrentUser()
+  const { data: projects = [] } = useProjects();
+  const { data: users = [] } = useUsers();
+  const createIssueMutation = useCreateIssue();
 
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [status, setStatus] = useState<IssueStatus>('todo')
-  const [priority, setPriority] = useState<IssuePriority>('none')
-  const [projectId, setProjectId] = useState(projects[0]?.id || '')
-  const [assigneeId, setAssigneeId] = useState<string | undefined>(undefined)
-  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [status, setStatus] = useState<IssueStatus>('todo');
+  const [priority, setPriority] = useState<IssuePriority>('none');
+  const [projectId, setProjectId] = useState('');
+  const [assigneeId, setAssigneeId] = useState<string | undefined>(undefined);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [selectedLabels, _setSelectedLabels] = useState<string[]>([]);
 
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
-  const [showPriorityDropdown, setShowPriorityDropdown] = useState(false)
-  const [showProjectDropdown, setShowProjectDropdown] = useState(false)
-  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [showPriorityDropdown, setShowPriorityDropdown] = useState(false);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
 
-  const selectedProject = projects.find((p) => p.id === projectId)
-  const selectedAssignee = assigneeId ? users.find((u) => u.id === assigneeId) : null
+  // Set default project when projects load
+  useEffect(() => {
+    if (projects.length > 0 && !projectId) {
+      setProjectId(projects[0].id);
+    }
+  }, [projects, projectId]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!title.trim() || !projectId) return
+  const selectedProject = projects.find((p: ProjectItem) => p.id === projectId);
+  const selectedAssignee = assigneeId ? users.find((u: UserItem) => u.id === assigneeId) : null;
 
-    createIssue({
-      title: title.trim(),
-      description: description.trim() || undefined,
-      status,
-      priority,
-      projectId,
-      assigneeId,
-      creatorId: currentUser.id,
-      labels: selectedLabels,
-    })
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !projectId) return;
 
-    onClose()
-  }
+    createIssueMutation.mutate(
+      {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        status,
+        priority,
+        projectId,
+        assigneeId,
+        labels: selectedLabels,
+      },
+      {
+        onSuccess: () => {
+          onClose();
+        },
+      }
+    );
+  };
 
   return (
     <div
@@ -109,9 +124,7 @@ export function CreateIssueModal({ onClose }: { onClose: () => void }) {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>
-              New Issue
-            </span>
+            <span style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>New Issue</span>
             {selectedProject && (
               <span
                 style={{
@@ -210,9 +223,7 @@ export function CreateIssueModal({ onClose }: { onClose: () => void }) {
               onToggle={() => setShowStatusDropdown(!showStatusDropdown)}
               trigger={
                 <PropertyPill>
-                  <span style={{ color: STATUS_CONFIG[status].color }}>
-                    {STATUS_ICONS[status]}
-                  </span>
+                  <span style={{ color: STATUS_CONFIG[status].color }}>{STATUS_ICONS[status]}</span>
                   <span>{STATUS_CONFIG[status].label}</span>
                 </PropertyPill>
               }
@@ -223,8 +234,8 @@ export function CreateIssueModal({ onClose }: { onClose: () => void }) {
                   <DropdownItem
                     key={s}
                     onClick={() => {
-                      setStatus(s)
-                      setShowStatusDropdown(false)
+                      setStatus(s);
+                      setShowStatusDropdown(false);
                     }}
                     isSelected={status === s}
                   >
@@ -251,8 +262,8 @@ export function CreateIssueModal({ onClose }: { onClose: () => void }) {
                 <DropdownItem
                   key={p}
                   onClick={() => {
-                    setPriority(p)
-                    setShowPriorityDropdown(false)
+                    setPriority(p);
+                    setShowPriorityDropdown(false);
                   }}
                   isSelected={priority === p}
                 >
@@ -282,12 +293,12 @@ export function CreateIssueModal({ onClose }: { onClose: () => void }) {
                 </PropertyPill>
               }
             >
-              {projects.map((p) => (
+              {projects.map((p: ProjectItem) => (
                 <DropdownItem
                   key={p.id}
                   onClick={() => {
-                    setProjectId(p.id)
-                    setShowProjectDropdown(false)
+                    setProjectId(p.id);
+                    setShowProjectDropdown(false);
                   }}
                   isSelected={projectId === p.id}
                 >
@@ -326,7 +337,9 @@ export function CreateIssueModal({ onClose }: { onClose: () => void }) {
                           color: 'white',
                         }}
                       >
-                        {selectedAssignee.initials}
+                        {selectedAssignee.initials ||
+                          selectedAssignee.name?.charAt(0).toUpperCase() ||
+                          'U'}
                       </div>
                       <span>{selectedAssignee.name}</span>
                     </>
@@ -341,20 +354,20 @@ export function CreateIssueModal({ onClose }: { onClose: () => void }) {
             >
               <DropdownItem
                 onClick={() => {
-                  setAssigneeId(undefined)
-                  setShowAssigneeDropdown(false)
+                  setAssigneeId(undefined);
+                  setShowAssigneeDropdown(false);
                 }}
                 isSelected={!assigneeId}
               >
                 <User size={14} style={{ color: 'var(--color-text-muted)' }} />
                 <span>Unassigned</span>
               </DropdownItem>
-              {users.map((u) => (
+              {users.map((u: UserItem) => (
                 <DropdownItem
                   key={u.id}
                   onClick={() => {
-                    setAssigneeId(u.id)
-                    setShowAssigneeDropdown(false)
+                    setAssigneeId(u.id);
+                    setShowAssigneeDropdown(false);
                   }}
                   isSelected={assigneeId === u.id}
                 >
@@ -372,7 +385,7 @@ export function CreateIssueModal({ onClose }: { onClose: () => void }) {
                       color: 'white',
                     }}
                   >
-                    {u.initials}
+                    {u.initials || u.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
                   <span>{u.name}</span>
                 </DropdownItem>
@@ -410,26 +423,33 @@ export function CreateIssueModal({ onClose }: { onClose: () => void }) {
             </button>
             <button
               type="submit"
-              disabled={!title.trim()}
+              disabled={!title.trim() || createIssueMutation.isPending}
               style={{
                 padding: '8px 16px',
-                backgroundColor: title.trim() ? 'var(--color-primary)' : 'var(--color-bg-tertiary)',
+                backgroundColor:
+                  title.trim() && !createIssueMutation.isPending
+                    ? 'var(--color-primary)'
+                    : 'var(--color-bg-tertiary)',
                 border: 'none',
                 borderRadius: 'var(--radius-md)',
-                cursor: title.trim() ? 'pointer' : 'not-allowed',
+                cursor:
+                  title.trim() && !createIssueMutation.isPending ? 'pointer' : 'not-allowed',
                 fontSize: '13px',
                 fontWeight: 500,
-                color: title.trim() ? 'white' : 'var(--color-text-muted)',
+                color:
+                  title.trim() && !createIssueMutation.isPending
+                    ? 'white'
+                    : 'var(--color-text-muted)',
                 transition: 'all var(--transition-fast)',
               }}
             >
-              Create Issue
+              {createIssueMutation.isPending ? 'Creating...' : 'Create Issue'}
             </button>
           </div>
         </form>
       </div>
     </div>
-  )
+  );
 }
 
 function PropertyPill({ children }: { children: React.ReactNode }) {
@@ -450,15 +470,15 @@ function PropertyPill({ children }: { children: React.ReactNode }) {
         transition: 'all var(--transition-fast)',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'var(--color-border-light)'
+        e.currentTarget.style.borderColor = 'var(--color-border-light)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'var(--color-border)'
+        e.currentTarget.style.borderColor = 'var(--color-border)';
       }}
     >
       {children}
     </button>
-  )
+  );
 }
 
 function Dropdown({
@@ -467,10 +487,10 @@ function Dropdown({
   trigger,
   children,
 }: {
-  isOpen: boolean
-  onToggle: () => void
-  trigger: React.ReactNode
-  children: React.ReactNode
+  isOpen: boolean;
+  onToggle: () => void;
+  trigger: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <div style={{ position: 'relative' }}>
@@ -508,7 +528,7 @@ function Dropdown({
         </>
       )}
     </div>
-  )
+  );
 }
 
 function DropdownItem({
@@ -516,9 +536,9 @@ function DropdownItem({
   onClick,
   isSelected,
 }: {
-  children: React.ReactNode
-  onClick: () => void
-  isSelected?: boolean
+  children: React.ReactNode;
+  onClick: () => void;
+  isSelected?: boolean;
 }) {
   return (
     <button
@@ -539,15 +559,15 @@ function DropdownItem({
         textAlign: 'left',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.backgroundColor = isSelected
           ? 'var(--color-bg-active)'
-          : 'transparent'
+          : 'transparent';
       }}
     >
       {children}
     </button>
-  )
+  );
 }

@@ -1,83 +1,110 @@
-import { useState, useMemo } from 'react'
-import {
-  useIssues,
-  useActiveView,
-  useViews,
-  useCurrentUser,
-  getFilteredIssues,
-  setSelectedIssue,
-  useSelectedIssue,
-} from '../store'
-import { IssueRow } from './IssueRow'
-import { FilterBar } from './FilterBar'
-import type { IssueStatus, IssuePriority } from '../types'
+import { useState, useMemo } from 'react';
+import { useActiveView, useViews, setSelectedIssue, useSelectedIssueId } from '../store';
+import { useIssues } from '../hooks/useIssues';
+import { useSession } from '../lib/auth-client';
+import { IssueRow } from './IssueRow';
+import { FilterBar } from './FilterBar';
+import type { IssueStatus, IssuePriority } from '../db/schema';
 
 export function IssueList() {
-  const issues = useIssues()
-  const activeView = useActiveView()
-  const views = useViews()
-  const currentUser = useCurrentUser()
-  const selectedIssue = useSelectedIssue()
+  const activeView = useActiveView();
+  const views = useViews();
+  const selectedIssueId = useSelectedIssueId();
+  const { data: session } = useSession();
 
-  const [statusFilter, setStatusFilter] = useState<IssueStatus[]>([])
-  const [priorityFilter, setPriorityFilter] = useState<IssuePriority[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<IssueStatus[]>([]);
+  const [priorityFilter, setPriorityFilter] = useState<IssuePriority[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredIssues = useMemo(() => {
-    const view = views.find((v) => v.id === activeView)
-
-    let baseFilter: Parameters<typeof getFilteredIssues>[0] = {}
+  // Determine filters based on active view
+  const viewFilters = useMemo(() => {
+    const view = views.find((v) => v.id === activeView);
+    const filters: {
+      status?: IssueStatus[];
+      priority?: IssuePriority[];
+      assigneeId?: string;
+      projectId?: string;
+      search?: string;
+    } = {};
 
     if (view?.filter) {
-      baseFilter = { ...view.filter }
+      if (view.filter.status?.length) filters.status = view.filter.status;
+      if (view.filter.priority?.length) filters.priority = view.filter.priority;
     }
 
-    if (activeView === 'view-my-issues') {
-      baseFilter.assigneeId = currentUser.id
+    if (activeView === 'view-my-issues' && session?.user?.id) {
+      filters.assigneeId = session.user.id;
     }
 
     if (activeView.startsWith('project-')) {
-      baseFilter.projectId = activeView.replace('project-', '')
+      filters.projectId = activeView.replace('project-', '');
     }
 
-    if (statusFilter.length) {
-      baseFilter.status = statusFilter
-    }
+    // Apply user filters
+    if (statusFilter.length) filters.status = statusFilter;
+    if (priorityFilter.length) filters.priority = priorityFilter;
+    if (searchQuery) filters.search = searchQuery;
 
-    if (priorityFilter.length) {
-      baseFilter.priority = priorityFilter
-    }
+    return filters;
+  }, [activeView, views, session, statusFilter, priorityFilter, searchQuery]);
 
-    if (searchQuery) {
-      baseFilter.search = searchQuery
-    }
-
-    return getFilteredIssues(baseFilter)
-  }, [issues, activeView, views, currentUser, statusFilter, priorityFilter, searchQuery])
+  const { data: issues = [], isLoading } = useIssues(viewFilters);
 
   const groupedIssues = useMemo(() => {
-    const groups: Record<IssueStatus, typeof filteredIssues> = {
+    type IssueItem = (typeof issues)[number];
+    const groups: Record<IssueStatus, IssueItem[]> = {
       backlog: [],
       todo: [],
       in_progress: [],
       in_review: [],
       done: [],
       cancelled: [],
-    }
+    };
 
-    filteredIssues.forEach((issue) => {
-      groups[issue.status].push(issue)
-    })
+    issues.forEach((issue) => {
+      groups[issue.status as IssueStatus].push(issue);
+    });
 
-    return groups
-  }, [filteredIssues])
+    return groups;
+  }, [issues]);
 
   const getViewTitle = () => {
     if (activeView.startsWith('project-')) {
-      return 'Project Issues'
+      return 'Project Issues';
     }
-    const view = views.find((v) => v.id === activeView)
-    return view?.name || 'All Issues'
+    const view = views.find((v) => v.id === activeView);
+    return view?.name || 'All Issues';
+  };
+
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'var(--color-bg-primary)',
+        }}
+      >
+        <div
+          style={{
+            width: '24px',
+            height: '24px',
+            border: '2px solid var(--color-border)',
+            borderTopColor: 'var(--color-primary)',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }}
+        />
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
   }
 
   return (
@@ -91,7 +118,7 @@ export function IssueList() {
     >
       <FilterBar
         title={getViewTitle()}
-        issueCount={filteredIssues.length}
+        issueCount={issues.length}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         statusFilter={statusFilter}
@@ -107,21 +134,21 @@ export function IssueList() {
           padding: '0 0 24px',
         }}
       >
-        {Object.entries(groupedIssues).map(([status, issues]) => {
-          if (issues.length === 0) return null
+        {Object.entries(groupedIssues).map(([status, statusIssues]) => {
+          if (statusIssues.length === 0) return null;
 
           return (
             <IssueGroup
               key={status}
               status={status as IssueStatus}
-              issues={issues}
-              selectedIssueId={selectedIssue?.id}
+              issues={statusIssues}
+              selectedIssueId={selectedIssueId}
               onSelectIssue={setSelectedIssue}
             />
-          )
+          );
         })}
 
-        {filteredIssues.length === 0 && (
+        {issues.length === 0 && (
           <div
             style={{
               display: 'flex',
@@ -140,7 +167,7 @@ export function IssueList() {
         )}
       </div>
     </div>
-  )
+  );
 }
 
 function IssueGroup({
@@ -149,12 +176,12 @@ function IssueGroup({
   selectedIssueId,
   onSelectIssue,
 }: {
-  status: IssueStatus
-  issues: ReturnType<typeof useIssues>
-  selectedIssueId?: string
-  onSelectIssue: (id: string | null) => void
+  status: IssueStatus;
+  issues: any[];
+  selectedIssueId?: string | null;
+  onSelectIssue: (id: string | null) => void;
 }) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const STATUS_LABELS: Record<IssueStatus, string> = {
     backlog: 'Backlog',
@@ -163,7 +190,7 @@ function IssueGroup({
     in_review: 'In Review',
     done: 'Done',
     cancelled: 'Cancelled',
-  }
+  };
 
   return (
     <div style={{ marginBottom: '4px' }}>
@@ -219,5 +246,5 @@ function IssueGroup({
         </div>
       )}
     </div>
-  )
+  );
 }

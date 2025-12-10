@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react';
 import {
   Inbox,
   User,
@@ -8,45 +8,93 @@ import {
   Plus,
   Search,
   Settings,
-  FolderKanban,
   Home,
   Pencil,
-} from 'lucide-react'
-import { useViews, useProjects, useActiveView, setActiveView, useCurrentUser, useWorkspace, createProject, updateProject } from '../store'
-import { ProjectEditDialog } from './ProjectEditDialog'
-import { AddProjectDialog } from './AddProjectDialog'
-import type { Project } from '../types'
+  LogOut,
+} from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { useViews, useActiveView, setActiveView } from '../store';
+import { useProjects, useCreateProject, useUpdateProject } from '../hooks/useProjects';
+import { useWorkspaces } from '../hooks/useWorkspaces';
+import { useSession, signOut } from '../lib/auth-client';
+import { ProjectEditDialog } from './ProjectEditDialog';
+import { AddProjectDialog } from './AddProjectDialog';
+import type { Project } from '../db/schema';
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   inbox: <Inbox size={16} />,
   user: <User size={16} />,
   'circle-dot': <CircleDot size={16} />,
   layers: <Layers size={16} />,
-}
+};
 
-export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () => void; onOpenSettings: () => void }) {
-  const views = useViews()
-  const projects = useProjects()
-  const activeView = useActiveView()
-  const currentUser = useCurrentUser()
-  const workspace = useWorkspace()
-  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const [editingProject, setEditingProject] = useState<Project | null>(null)
-  const [showAddProject, setShowAddProject] = useState(false)
+export function Sidebar({
+  onCreateIssue,
+  onOpenSettings,
+}: {
+  onCreateIssue: () => void;
+  onOpenSettings: () => void;
+}) {
+  const navigate = useNavigate();
+  const views = useViews();
+  const { data: projects = [] } = useProjects();
+  const { data: workspaces = [] } = useWorkspaces();
+  const { data: session } = useSession();
+  const activeView = useActiveView();
+  
+  const createProjectMutation = useCreateProject();
+  const updateProjectMutation = useUpdateProject();
+
+  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [showAddProject, setShowAddProject] = useState(false);
+
+  const currentWorkspace = workspaces[0];
+  const currentUser = session?.user;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowWorkspaceMenu(false)
+        setShowWorkspaceMenu(false);
       }
-    }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
 
-    if (showWorkspaceMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
+    if (showWorkspaceMenu || showUserMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showWorkspaceMenu])
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showWorkspaceMenu, showUserMenu]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    // Full page redirect to ensure session is cleared
+    window.location.href = '/auth/sign-in';
+  };
+
+  const handleCreateProject = (name: string, color?: string) => {
+    if (currentWorkspace) {
+      createProjectMutation.mutate({
+        workspaceId: currentWorkspace.id,
+        name,
+        color,
+      });
+    }
+  };
+
+  const handleUpdateProject = (name: string) => {
+    if (editingProject) {
+      updateProjectMutation.mutate({
+        projectId: editingProject.id,
+        name,
+      });
+    }
+  };
 
   return (
     <aside
@@ -84,11 +132,11 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
             transition: 'background-color var(--transition-fast)',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+            e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
           }}
           onMouseLeave={(e) => {
             if (!showWorkspaceMenu) {
-              e.currentTarget.style.backgroundColor = 'transparent'
+              e.currentTarget.style.backgroundColor = 'transparent';
             }
           }}
         >
@@ -97,8 +145,8 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
               width: '24px',
               height: '24px',
               borderRadius: 'var(--radius-sm)',
-              background: workspace.icon 
-                ? `url(${workspace.icon}) center/cover no-repeat` 
+              background: currentWorkspace?.icon
+                ? `url(${currentWorkspace.icon}) center/cover no-repeat`
                 : 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
               display: 'flex',
               alignItems: 'center',
@@ -109,7 +157,7 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
               overflow: 'hidden',
             }}
           >
-            {!workspace.icon && workspace.name.charAt(0).toUpperCase()}
+            {!currentWorkspace?.icon && (currentWorkspace?.name || 'W').charAt(0).toUpperCase()}
           </div>
           <span
             style={{
@@ -119,15 +167,15 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
               color: 'var(--color-text-primary)',
             }}
           >
-            {workspace.name}
+            {currentWorkspace?.name || 'Workspace'}
           </span>
-          <ChevronDown 
-            size={14} 
-            style={{ 
+          <ChevronDown
+            size={14}
+            style={{
               color: 'var(--color-text-muted)',
               transform: showWorkspaceMenu ? 'rotate(180deg)' : 'rotate(0deg)',
               transition: 'transform var(--transition-fast)',
-            }} 
+            }}
           />
         </button>
 
@@ -151,8 +199,8 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
           >
             <button
               onClick={() => {
-                setShowWorkspaceMenu(false)
-                onOpenSettings()
+                setShowWorkspaceMenu(false);
+                onOpenSettings();
               }}
               style={{
                 display: 'flex',
@@ -169,16 +217,48 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
                 textAlign: 'left',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
-                e.currentTarget.style.color = 'var(--color-text-primary)'
+                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                e.currentTarget.style.color = 'var(--color-text-primary)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-                e.currentTarget.style.color = 'var(--color-text-secondary)'
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
               }}
             >
               <Settings size={15} />
               <span>Workspace Settings</span>
+            </button>
+            <button
+              onClick={() => {
+                setShowWorkspaceMenu(false);
+                handleSignOut();
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                width: '100%',
+                padding: '10px 14px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderTop: '1px solid var(--color-border)',
+                cursor: 'pointer',
+                fontSize: '13px',
+                color: 'var(--color-text-secondary)',
+                transition: 'all var(--transition-fast)',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                e.currentTarget.style.color = '#FF708C';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+              }}
+            >
+              <LogOut size={15} />
+              <span>Sign out</span>
             </button>
           </div>
         )}
@@ -203,10 +283,10 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
             fontWeight: 500,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = '0.9'
+            e.currentTarget.style.opacity = '0.9';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = '1'
+            e.currentTarget.style.opacity = '1';
           }}
         >
           <Plus size={16} />
@@ -218,12 +298,7 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
       <nav style={{ flex: 1, overflow: 'auto', padding: '8px 0' }}>
         {/* Main views */}
         <div style={{ padding: '0 8px' }}>
-          <NavItem
-            icon={<Search size={16} />}
-            label="Search"
-            shortcut="/"
-            onClick={() => {}}
-          />
+          <NavItem icon={<Search size={16} />} label="Search" shortcut="/" onClick={() => {}} />
           <NavItem
             icon={<Home size={16} />}
             label="Home"
@@ -252,7 +327,7 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
         <div style={{ marginTop: '16px' }}>
           <SectionHeader title="Projects" onAdd={() => setShowAddProject(true)} />
           <div style={{ padding: '0 8px' }}>
-            {projects.map((project) => (
+            {projects.map((project: Project) => (
               <ProjectNavItem
                 key={project.id}
                 project={project}
@@ -267,29 +342,34 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
 
       {/* User section */}
       <div
+        ref={userDropdownRef}
         style={{
           padding: '12px',
           borderTop: '1px solid var(--color-border)',
+          position: 'relative',
         }}
       >
         <button
+          onClick={() => setShowUserMenu(!showUserMenu)}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             width: '100%',
             padding: '8px',
-            backgroundColor: 'transparent',
+            backgroundColor: showUserMenu ? 'var(--color-bg-hover)' : 'transparent',
             border: 'none',
             borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
             transition: 'background-color var(--transition-fast)',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+            e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent'
+            if (!showUserMenu) {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }
           }}
         >
           <div
@@ -306,7 +386,12 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
               color: 'white',
             }}
           >
-            {currentUser.initials}
+            {currentUser?.name
+              ?.split(' ')
+              .map((n) => n[0])
+              .join('')
+              .toUpperCase()
+              .slice(0, 2) || 'U'}
           </div>
           <span
             style={{
@@ -316,21 +401,88 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
               color: 'var(--color-text-primary)',
             }}
           >
-            {currentUser.name}
+            {currentUser?.name || 'User'}
           </span>
-          <Settings size={14} style={{ color: 'var(--color-text-muted)' }} />
+          <ChevronDown
+            size={14}
+            style={{
+              color: 'var(--color-text-muted)',
+              transform: showUserMenu ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform var(--transition-fast)',
+            }}
+          />
         </button>
+
+        {/* User dropdown menu (opens upward) */}
+        {showUserMenu && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: '12px',
+              right: '12px',
+              marginBottom: '4px',
+              backgroundColor: 'var(--color-bg-tertiary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.35)',
+              zIndex: 50,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                padding: '12px 14px',
+                borderBottom: '1px solid var(--color-border)',
+              }}
+            >
+              <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                {currentUser?.name || 'User'}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                {currentUser?.email || ''}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowUserMenu(false);
+                handleSignOut();
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                width: '100%',
+                padding: '10px 14px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '13px',
+                color: 'var(--color-text-secondary)',
+                transition: 'all var(--transition-fast)',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                e.currentTarget.style.color = '#FF708C';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+              }}
+            >
+              <LogOut size={15} />
+              <span>Sign out</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Project Edit Dialog */}
       <ProjectEditDialog
         isOpen={editingProject !== null}
         onClose={() => setEditingProject(null)}
-        onSave={(name) => {
-          if (editingProject) {
-            updateProject(editingProject.id, { name })
-          }
-        }}
+        onSave={handleUpdateProject}
         currentName={editingProject?.name || ''}
       />
 
@@ -338,12 +490,10 @@ export function Sidebar({ onCreateIssue, onOpenSettings }: { onCreateIssue: () =
       <AddProjectDialog
         isOpen={showAddProject}
         onClose={() => setShowAddProject(false)}
-        onSave={(name, color) => {
-          createProject({ name, color })
-        }}
+        onSave={handleCreateProject}
       />
     </aside>
-  )
+  );
 }
 
 function SectionHeader({ title, onAdd }: { title: string; onAdd?: () => void }) {
@@ -383,17 +533,17 @@ function SectionHeader({ title, onAdd }: { title: string; onAdd?: () => void }) 
             transition: 'color var(--transition-fast)',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.color = 'var(--color-text-primary)'
+            e.currentTarget.style.color = 'var(--color-text-primary)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.color = 'var(--color-text-muted)'
+            e.currentTarget.style.color = 'var(--color-text-muted)';
           }}
         >
           <Plus size={12} />
         </button>
       )}
     </div>
-  )
+  );
 }
 
 function ProjectNavItem({
@@ -402,12 +552,12 @@ function ProjectNavItem({
   onClick,
   onEdit,
 }: {
-  project: Project
-  active?: boolean
-  onClick: () => void
-  onEdit: () => void
+  project: Project;
+  active?: boolean;
+  onClick: () => void;
+  onEdit: () => void;
 }) {
-  const [isHovered, setIsHovered] = useState(false)
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
     <div
@@ -437,12 +587,12 @@ function ProjectNavItem({
         }}
         onMouseEnter={(e) => {
           if (!active) {
-            e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+            e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
           }
         }}
         onMouseLeave={(e) => {
           if (!active) {
-            e.currentTarget.style.backgroundColor = 'transparent'
+            e.currentTarget.style.backgroundColor = 'transparent';
           }
         }}
       >
@@ -461,8 +611,8 @@ function ProjectNavItem({
       {isHovered && (
         <button
           onClick={(e) => {
-            e.stopPropagation()
-            onEdit()
+            e.stopPropagation();
+            onEdit();
           }}
           style={{
             position: 'absolute',
@@ -480,19 +630,19 @@ function ProjectNavItem({
             transition: 'all var(--transition-fast)',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)'
-            e.currentTarget.style.color = 'var(--color-text-primary)'
+            e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
+            e.currentTarget.style.color = 'var(--color-text-primary)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent'
-            e.currentTarget.style.color = 'var(--color-text-muted)'
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = 'var(--color-text-muted)';
           }}
         >
           <Pencil size={12} />
         </button>
       )}
     </div>
-  )
+  );
 }
 
 function NavItem({
@@ -502,11 +652,11 @@ function NavItem({
   active,
   onClick,
 }: {
-  icon: React.ReactNode
-  label: string
-  shortcut?: string
-  active?: boolean
-  onClick: () => void
+  icon: React.ReactNode;
+  label: string;
+  shortcut?: string;
+  active?: boolean;
+  onClick: () => void;
 }) {
   return (
     <button
@@ -526,12 +676,12 @@ function NavItem({
       }}
       onMouseEnter={(e) => {
         if (!active) {
-          e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+          e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
         }
       }}
       onMouseLeave={(e) => {
         if (!active) {
-          e.currentTarget.style.backgroundColor = 'transparent'
+          e.currentTarget.style.backgroundColor = 'transparent';
         }
       }}
     >
@@ -553,5 +703,5 @@ function NavItem({
         </span>
       )}
     </button>
-  )
+  );
 }
