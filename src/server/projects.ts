@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { authMiddleware } from '@/lib/auth-middleware';
+import { sendWebhook, computeChanges } from '../lib/webhooks';
 
 // Validation schemas
 const createProjectSchema = z.object({
@@ -138,6 +139,12 @@ export const createProject = createServerFn({ method: 'POST' })
       })
       .returning();
 
+    // Dispatch webhook (fire-and-forget)
+    sendWebhook(data.workspaceId, 'project.created', {
+      action: 'created',
+      resource: project,
+    });
+
     return project;
   });
 
@@ -164,12 +171,25 @@ export const updateProject = createServerFn({ method: 'POST' })
       throw new Error('Unauthorized');
     }
 
+    // Store old values for webhook change tracking
+    const oldProject = { ...project };
+
     const { projectId, ...updates } = data;
     const [updated] = await db
       .update(projects)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(projects.id, projectId))
       .returning();
+
+    // Compute changes for webhook
+    const changes = computeChanges(oldProject, updated, ['name', 'color', 'description', 'key']);
+
+    // Dispatch webhook (fire-and-forget)
+    sendWebhook(project.workspaceId, 'project.updated', {
+      action: 'updated',
+      resource: updated,
+      changes,
+    });
 
     return updated;
   });
@@ -197,8 +217,18 @@ export const deleteProject = createServerFn({ method: 'POST' })
       throw new Error('Unauthorized');
     }
 
+    // Store project data for webhook before deletion
+    const deletedProjectData = { ...project };
+    const workspaceId = project.workspaceId;
+
     // Delete project (cascade will delete issues)
     await db.delete(projects).where(eq(projects.id, data.projectId));
+
+    // Dispatch webhook (fire-and-forget)
+    sendWebhook(workspaceId, 'project.deleted', {
+      action: 'deleted',
+      resource: deletedProjectData,
+    });
 
     return { success: true };
   });

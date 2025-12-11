@@ -31,9 +31,11 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 export function Sidebar({
   onCreateIssue,
   onOpenSettings,
+  onOpenSearch,
 }: {
   onCreateIssue: () => void;
   onOpenSettings: () => void;
+  onOpenSearch: () => void;
 }) {
   const navigate = useNavigate();
   const views = useViews();
@@ -74,7 +76,7 @@ export function Sidebar({
   const handleSignOut = async () => {
     await signOut();
     // Full page redirect to ensure session is cleared
-    window.location.href = '/auth/sign-in';
+    window.location.href = '/';
   };
 
   const handleCreateProject = (name: string, color?: string) => {
@@ -298,7 +300,7 @@ export function Sidebar({
       <nav style={{ flex: 1, overflow: 'auto', padding: '8px 0' }}>
         {/* Main views */}
         <div style={{ padding: '0 8px' }}>
-          <NavItem icon={<Search size={16} />} label="Search" shortcut="/" onClick={() => {}} />
+          <NavItem icon={<Search size={16} />} label="Search" shortcut="/" onClick={onOpenSearch} />
           <NavItem
             icon={<Home size={16} />}
             label="Home"

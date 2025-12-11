@@ -6,6 +6,7 @@ import {
   pgEnum,
   integer,
   primaryKey,
+  boolean,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -126,12 +127,35 @@ export const issueLabels = pgTable(
   (t) => [primaryKey({ columns: [t.issueId, t.labelId] })]
 );
 
+// Webhooks (one per workspace for MVP)
+export const webhooks = pgTable('webhooks', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  workspaceId: text('workspace_id')
+    .references(() => workspaces.id, { onDelete: 'cascade' })
+    .notNull()
+    .unique(), // Only one webhook per workspace for MVP
+  url: text('url').notNull(),
+  secret: text('secret'), // Optional HMAC signing secret
+  enabled: boolean('enabled').notNull().default(true),
+  events: text('events').array().notNull(), // ['issue.created', 'issue.updated', ...]
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 // Relations
 export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
   owner: one(user, { fields: [workspaces.ownerId], references: [user.id] }),
   members: many(workspaceMembers),
   projects: many(projects),
   labels: many(labels),
+  webhook: one(webhooks),
+}));
+
+export const webhooksRelations = relations(webhooks, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [webhooks.workspaceId],
+    references: [workspaces.id],
+  }),
 }));
 
 export const workspaceMembersRelations = relations(workspaceMembers, ({ one }) => ({
@@ -203,3 +227,18 @@ export type Label = typeof labels.$inferSelect;
 export type NewLabel = typeof labels.$inferInsert;
 
 export type User = typeof user.$inferSelect;
+
+export type Webhook = typeof webhooks.$inferSelect;
+export type NewWebhook = typeof webhooks.$inferInsert;
+
+// Webhook event types
+export const WEBHOOK_EVENTS = [
+  'issue.created',
+  'issue.updated',
+  'issue.deleted',
+  'project.created',
+  'project.updated',
+  'project.deleted',
+] as const;
+
+export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];

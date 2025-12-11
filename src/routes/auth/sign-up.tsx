@@ -30,8 +30,8 @@ function SignUpPage() {
         setLoading(false);
       } else {
         // Force a full page navigation to ensure session is picked up
-        // The workspace will be created via the index route's loader
-        window.location.href = '/';
+        // The workspace will be created via the app route's loader
+        window.location.href = '/app';
       }
     } catch (err) {
       console.error('Sign up error:', err);

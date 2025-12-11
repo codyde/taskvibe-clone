@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { authMiddleware } from '@/lib/auth-middleware';
+import { sendWebhook, computeChanges } from '../lib/webhooks';
 
 // Validation schemas
 const issueStatusEnum = z.enum([
@@ -263,6 +264,12 @@ export const createIssue = createServerFn({ method: 'POST' })
       return newIssue;
     });
 
+    // Dispatch webhook (fire-and-forget)
+    sendWebhook(project.workspaceId, 'issue.created', {
+      action: 'created',
+      resource: result,
+    });
+
     return result;
   });
 
@@ -291,6 +298,9 @@ export const updateIssue = createServerFn({ method: 'POST' })
     if (!hasAccess) {
       throw new Error('Unauthorized');
     }
+
+    // Store old values for webhook change tracking
+    const oldIssue = { ...issue };
 
     const { issueId, labels: labelIds, ...updates } = data;
 
@@ -337,6 +347,24 @@ export const updateIssue = createServerFn({ method: 'POST' })
       return updated;
     });
 
+    // Compute changes for webhook
+    const changes = computeChanges(oldIssue, result, [
+      'title',
+      'description',
+      'status',
+      'priority',
+      'assigneeId',
+      'estimate',
+      'dueDate',
+    ]);
+
+    // Dispatch webhook (fire-and-forget)
+    sendWebhook(issue.project.workspaceId, 'issue.updated', {
+      action: 'updated',
+      resource: result,
+      changes,
+    });
+
     return result;
   });
 
@@ -366,8 +394,18 @@ export const deleteIssue = createServerFn({ method: 'POST' })
       throw new Error('Unauthorized');
     }
 
+    // Store issue data for webhook before deletion
+    const deletedIssueData = { ...issue, project: undefined };
+    const workspaceId = issue.project.workspaceId;
+
     // Delete issue (cascade will delete issue_labels)
     await db.delete(issues).where(eq(issues.id, data.issueId));
+
+    // Dispatch webhook (fire-and-forget)
+    sendWebhook(workspaceId, 'issue.deleted', {
+      action: 'deleted',
+      resource: deletedIssueData,
+    });
 
     return { success: true };
   });

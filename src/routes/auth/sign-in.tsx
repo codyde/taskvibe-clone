@@ -28,7 +28,7 @@ function SignInPage() {
         setLoading(false);
       } else {
         // Force a full page navigation to ensure session is picked up
-        window.location.href = '/';
+        window.location.href = '/app';
       }
     } catch (err) {
       console.error('Sign in error:', err);
