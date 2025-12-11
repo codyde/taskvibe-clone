@@ -130,7 +130,7 @@ export async function sendTestWebhook(workspaceId: string): Promise<{ success: b
       workspaceId,
       data: {
         action: 'test',
-        message: 'This is a test webhook from Linear Clone',
+        message: 'This is a test webhook from Momentum',
       },
     };
 

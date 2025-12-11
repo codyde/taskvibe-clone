@@ -16,7 +16,6 @@ import {
   Layers,
   ChevronDown,
   Zap,
-  GitBranch,
   Terminal,
   Coffee,
   Keyboard,
@@ -168,34 +167,6 @@ function LandingPage() {
               <Rocket size={18} />
               Get Started — it's free
             </Link>
-            <a
-              href="https://github.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                padding: '14px 28px',
-                backgroundColor: 'var(--color-bg-tertiary)',
-                color: 'var(--color-text-primary)',
-                borderRadius: '8px',
-                textDecoration: 'none',
-                fontWeight: 500,
-                fontSize: '15px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                border: '1px solid var(--color-border)',
-                transition: 'all var(--transition-fast)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
-              }}
-            >
-              <GitBranch size={18} />
-              View on GitHub
-            </a>
           </div>
         </div>
 
@@ -286,11 +257,6 @@ function LandingPage() {
               icon={<Coffee size={24} />}
               title="No bloat"
               description="We didn't add features just because the PM said 'wouldn't it be cool if...'. Every feature earns its place by being useful."
-            />
-            <FeatureCard
-              icon={<GitBranch size={24} />}
-              title="Git-aware"
-              description="Automatically links commits, PRs, and branches. Because copy-pasting IDs into commit messages is so 2015."
             />
             <FeatureCard
               icon={<Rocket size={24} />}
