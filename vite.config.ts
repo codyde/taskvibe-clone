@@ -18,7 +18,7 @@ const config = defineConfig({
   ],
   nitro: {},
   server: {
-    allowedHosts: ['.trycloudflare.com']
+    allowedHosts: ['.trycloudflare.com', '.up.railway.app']
   },
   // Make sure server-only dependencies are externalized
   ssr: {

@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "h3-v2": "npm:h3@^2.0.0-beta.5",
     "@neondatabase/serverless": "^1.0.2",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/nitro-v2-vite-plugin": "^1.141.0",
@@ -23,6 +24,7 @@
     "better-auth": "^1.4.6",
     "drizzle-orm": "^0.45.0",
     "lucide-react": "^0.560.0",
+    "nitro": "^3.0.1-alpha.1",
     "postgres": "^3.4.7",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
