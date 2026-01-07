@@ -1,35 +1,24 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
-import { signIn } from '../../lib/auth-client';
+import { authClient } from '../../lib/auth-client';
 
 export const Route = createFileRoute('/auth/sign-in')({
   component: SignInPage,
 });
 
 function SignInPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSentrySignIn = async () => {
     setLoading(true);
     setError('');
 
     try {
-      const result = await signIn.email({
-        email,
-        password,
+      await authClient.signIn.oauth2({
+        providerId: 'sentry',
+        callbackURL: '/app',
       });
-
-      if (result.error) {
-        setError(result.error.message || 'Sign in failed');
-        setLoading(false);
-      } else {
-        // Force a full page navigation to ensure session is picked up
-        window.location.href = '/app';
-      }
     } catch (err) {
       console.error('Sign in error:', err);
       setError('An unexpected error occurred');
@@ -67,10 +56,10 @@ function SignInPage() {
               marginBottom: '8px',
             }}
           >
-            Welcome back
+            Welcome to TaskVibe
           </h1>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>
-            Sign in to your account
+            Sign in with your Sentry account
           </p>
         </div>
 
@@ -90,110 +79,37 @@ function SignInPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '16px' }}>
-            <label
-              style={{
-                display: 'block',
-                marginBottom: '6px',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: 'var(--color-text-secondary)',
-              }}
-            >
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                fontSize: '14px',
-                backgroundColor: 'var(--color-bg-tertiary)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--color-text-primary)',
-                outline: 'none',
-                transition: 'border-color var(--transition-fast)',
-              }}
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div style={{ marginBottom: '24px' }}>
-            <label
-              style={{
-                display: 'block',
-                marginBottom: '6px',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: 'var(--color-text-secondary)',
-              }}
-            >
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                fontSize: '14px',
-                backgroundColor: 'var(--color-bg-tertiary)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--color-text-primary)',
-                outline: 'none',
-                transition: 'border-color var(--transition-fast)',
-              }}
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '10px 16px',
-              fontSize: '14px',
-              fontWeight: 500,
-              backgroundColor: loading ? 'var(--color-bg-tertiary)' : 'var(--color-primary)',
-              color: loading ? 'var(--color-text-muted)' : 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'all var(--transition-fast)',
-            }}
-          >
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
-
-        <div
+        <button
+          onClick={handleSentrySignIn}
+          disabled={loading}
           style={{
-            marginTop: '24px',
-            textAlign: 'center',
-            fontSize: '13px',
-            color: 'var(--color-text-secondary)',
+            width: '100%',
+            padding: '12px 16px',
+            fontSize: '14px',
+            fontWeight: 500,
+            backgroundColor: loading ? 'var(--color-bg-tertiary)' : '#362d59',
+            color: loading ? 'var(--color-text-muted)' : 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            transition: 'all var(--transition-fast)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
           }}
         >
-          Don't have an account?{' '}
-          <Link
-            to="/auth/sign-up"
-            style={{
-              color: 'var(--color-primary)',
-              textDecoration: 'none',
-            }}
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 72 66"
+            fill="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
           >
-            Sign up
-          </Link>
-        </div>
+            <path d="M29,2.26a4.67,4.67,0,0,0-8,0L14.42,13.53A32.21,32.21,0,0,1,32.17,40.19H27.55A27.68,27.68,0,0,0,12.09,17.47L6,28a15.92,15.92,0,0,1,9.23,12.17H4.62A.76.76,0,0,1,4,39.06l2.94-5a10.74,10.74,0,0,0-3.36-1.9l-2.91,5a4.54,4.54,0,0,0,1.69,6.24A4.66,4.66,0,0,0,4.62,44H19.15a19.4,19.4,0,0,0-8-17.31l2.31-4A23.87,23.87,0,0,1,23.76,44H36.07a35.88,35.88,0,0,0-16.41-31.8l4.67-8a.77.77,0,0,1,1.05-.27c.53.29,20.29,34.77,20.66,35.17a.76.76,0,0,1-.68,1.13H40.6q.09,1.91,0,3.81h4.78A4.59,4.59,0,0,0,50,39.43a4.49,4.49,0,0,0-.62-2.28Z" />
+          </svg>
+          {loading ? 'Redirecting...' : 'Continue with Sentry'}
+        </button>
       </div>
     </div>
   );

@@ -61,14 +61,24 @@ export const createWorkspace = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { db } = await import('../db');
     const { workspaces, workspaceMembers, labels, projects } = await import('../db/schema');
+    const { eq } = await import('drizzle-orm');
 
     // Generate slug from name if not provided
-    const slug =
+    let slug =
       data.slug ||
       data.name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
+
+    // Check if slug exists and append random suffix if needed
+    const existingWorkspace = await db.query.workspaces.findFirst({
+      where: eq(workspaces.slug, slug),
+    });
+    
+    if (existingWorkspace) {
+      slug = `${slug}-${Math.random().toString(36).substring(2, 4)}`;
+    }
 
     // Create workspace in transaction
     const result = await db.transaction(async (tx) => {
