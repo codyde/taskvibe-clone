@@ -44,6 +44,7 @@ export const auth = betterAuth({
           authorizationUrl: 'https://sentry.io/oauth/authorize/',
           tokenUrl: 'https://sentry.io/oauth/token/',
           scopes: ['openid', 'profile', 'email'],
+          pkce: true,
           getUserInfo: async (tokens) => {
             const raw = tokens.raw as Record<string, unknown>;
             const user = raw.user as { id: string; name: string; email: string };
